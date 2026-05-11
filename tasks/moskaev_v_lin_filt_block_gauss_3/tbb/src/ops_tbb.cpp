@@ -160,7 +160,7 @@ bool MoskaevVLinFiltBlockGauss3TBB::RunImpl() {
 }
 
 bool MoskaevVLinFiltBlockGauss3TBB::PostProcessingImpl() {
-  return !GetOutput().empty();
+  return !GetOutput().empty();  //
 }
 
 }  // namespace moskaev_v_lin_filt_block_gauss_3
