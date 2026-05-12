@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <execution>
 #include <numeric>
-#include <ranges>
 #include <vector>
 
 #include "moskaev_v_lin_filt_block_gauss_3/common/include/common.hpp"
