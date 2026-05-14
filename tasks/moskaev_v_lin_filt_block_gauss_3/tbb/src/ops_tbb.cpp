@@ -57,8 +57,8 @@ void MoskaevVLinFiltBlockGauss3TBB::ApplyGaussianFilterToBlock(const std::vector
   tbb::parallel_for(tbb::blocked_range3d<int>(0, inner_height, 0, inner_width, 0, channels),
                     [&](const tbb::blocked_range3d<int> &range) {
     for (int row = range.pages().begin(); row < range.pages().end(); ++row) {
-      for (int col = range.cols().begin(); col < range.cols().end(); ++col) {
-        for (int channel = range.rows().begin(); channel < range.rows().end(); ++channel) {
+      for (int col = range.rows().begin(); col < range.rows().end(); ++col) {
+        for (int channel = range.cols().begin(); channel < range.cols().end(); ++channel) {
           ComputeFilteredPixel(input_block, output_block, block_width, inner_width, channels, row, col, channel);
         }
       }
