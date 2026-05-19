@@ -6,8 +6,8 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <thread>
-#include <utility>
 #include <vector>
 
 #include "moskaev_v_lin_filt_block_gauss_3/common/include/common.hpp"
@@ -200,7 +200,7 @@ void ProcessAssignedBlocks(const std::vector<int> &local_blocks, int blocks_x, i
   }
 }
 
-void GatherAndBroadcastResult(int rank, int num_procs, const std::vector<uint8_t> &output, size_t total_pixels,
+void GatherAndBroadcastResult(int rank, int num_procs, std::vector<uint8_t> &output, size_t total_pixels,
                               OutType &out) {
   int send_count = static_cast<int>(output.size());
 
@@ -219,8 +219,8 @@ void GatherAndBroadcastResult(int rank, int num_procs, const std::vector<uint8_t
   }
 
   if (send_count > 0) {
-    MPI_Gatherv(const_cast<uint8_t *>(output.data()), send_count, MPI_UNSIGNED_CHAR, out.data(), recv_counts.data(),
-                displs.data(), MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+    MPI_Gatherv(output.data(), send_count, MPI_UNSIGNED_CHAR, out.data(), recv_counts.data(), displs.data(),
+                MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
   } else {
     MPI_Gatherv(nullptr, 0, MPI_UNSIGNED_CHAR, out.data(), recv_counts.data(), displs.data(), MPI_UNSIGNED_CHAR, 0,
                 MPI_COMM_WORLD);
