@@ -1,4 +1,3 @@
-// ops_all.cpp - исправленная версия
 #include "moskaev_v_lin_filt_block_gauss_3/all/include/ops_all.hpp"
 
 #include <mpi.h>
@@ -140,6 +139,7 @@ void ScatterBlocks(int rank, int num_procs, int total_blocks, std::vector<int> &
   local_cnt = per_proc + (rank < rem ? 1 : 0);
 
   if (local_cnt <= 0) {
+    local_blocks.clear();
     return;
   }
 
@@ -200,8 +200,13 @@ void ProcessAssignedBlocks(const std::vector<int> &local_blocks, int blocks_x, i
   }
 }
 
-void GatherSizes(int rank, int num_procs, int send_count, std::vector<int> &recv_counts, std::vector<int> &displs) {
-  (void)rank;
+void GatherAndBroadcastResult(int rank, int num_procs, const std::vector<uint8_t> &output, size_t total_pixels,
+                              OutType &out) {
+  int send_count = static_cast<int>(output.size());
+
+  std::vector<int> recv_counts(num_procs);
+  std::vector<int> displs(num_procs);
+
   MPI_Gather(&send_count, 1, MPI_INT, recv_counts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
 
   if (rank == 0) {
@@ -210,41 +215,23 @@ void GatherSizes(int rank, int num_procs, int send_count, std::vector<int> &recv
       displs[i] = offset;
       offset += recv_counts[i];
     }
-  }
-}
-
-void GatherResult(int /*rank*/, const std::vector<uint8_t> &output, int send_count, OutType &out,
-                  const std::vector<int> &recv_counts, const std::vector<int> &displs) {
-  MPI_Gatherv(const_cast<uint8_t *>(output.data()), send_count, MPI_UNSIGNED_CHAR, out.data(), recv_counts.data(),
-              displs.data(), MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
-}
-
-void BroadcastResult(int rank, OutType &out) {
-  int out_size = static_cast<int>(out.size());
-  MPI_Bcast(&out_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-  if (rank != 0) {
-    out.resize(out_size);
-  }
-
-  MPI_Bcast(out.data(), out_size, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
-}
-
-void GatherAndBroadcastResult(int rank, int num_procs, const std::vector<uint8_t> &output, size_t total_pixels,
-                              OutType &out) {
-  int send_count = static_cast<int>(output.size());
-
-  std::vector<int> recv_counts(num_procs);
-  std::vector<int> displs(num_procs);
-
-  GatherSizes(rank, num_procs, send_count, recv_counts, displs);
-
-  if (rank == 0) {
     out.resize(total_pixels);
   }
 
-  GatherResult(rank, output, send_count, out, recv_counts, displs);
-  BroadcastResult(rank, out);
+  if (send_count > 0) {
+    MPI_Gatherv(const_cast<uint8_t *>(output.data()), send_count, MPI_UNSIGNED_CHAR, out.data(), recv_counts.data(),
+                displs.data(), MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+  } else {
+    MPI_Gatherv(nullptr, 0, MPI_UNSIGNED_CHAR, out.data(), recv_counts.data(), displs.data(), MPI_UNSIGNED_CHAR, 0,
+                MPI_COMM_WORLD);
+  }
+
+  int out_size = static_cast<int>(out.size());
+  MPI_Bcast(&out_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  if (rank != 0) {
+    out.resize(out_size);
+  }
+  MPI_Bcast(out.data(), out_size, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
 }
 
 }  // namespace
@@ -287,7 +274,6 @@ bool MoskaevVLinFiltBlockGauss3ALL::RunImpl() {
   }
 
   size_t total_pixels = static_cast<size_t>(width) * height * channels;
-  std::vector<uint8_t> output(total_pixels, 0);
 
   int blocks_x = (width + block_size_ - 1) / block_size_;
   int blocks_y = (height + block_size_ - 1) / block_size_;
@@ -300,6 +286,11 @@ bool MoskaevVLinFiltBlockGauss3ALL::RunImpl() {
   std::vector<int> local_blocks;
   int local_cnt = 0;
   ScatterBlocks(rank_, num_procs_, total_blocks, local_blocks, local_cnt);
+
+  std::vector<uint8_t> output;
+  if (local_cnt > 0) {
+    output.assign(total_pixels, 0);
+  }
 
   ProcessAssignedBlocks(local_blocks, blocks_x, width, height, channels, block_size_, image_data, output);
 
